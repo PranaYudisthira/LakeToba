@@ -1,59 +1,53 @@
-name: CI/CD Pipeline
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    # Checkout repository
-    - name: Checkout repository
-      uses: actions/checkout@v2
-
-    # Set up Docker Buildx
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-
-    # Cache dependencies
-    - name: Cache Docker layers
-      uses: actions/cache@v2
-      with:
-        path: /tmp/.buildx-cache
-        key: ${{ runner.os }}-buildx-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-buildx-
-
-    # Build Docker image
-    - name: Build Docker image
-      id: build
-      run: |
-        docker buildx build --platform linux/amd64,linux/arm64 -t my-image:latest .
-
-    # Push Docker image to registry
-    - name: Push Docker image
-      run: |
-        docker push my-image:latest
-
-    # Example of saving state using environment files instead of save-state
-    - name: Save build status to environment file
-      run: |
-        echo "BUILD_STATUS=success" >> $GITHUB_ENV
-
-    # Example of reading from environment file
-    - name: Display build status
-      run: |
-        echo "The build status is $BUILD_STATUS"
-
-    # Deploy the application (optional step)
-    - name: Deploy application
-      if: ${{ success() }}
-      run: |
-        # Your deploy script goes here
-        echo "Deploying application..."
+name: Build and Push Docker Image to Docker Hub 
+on: 
+  push: 
+    branches: [ "main" ] 
+  pull_request: 
+    branches: [ "main" ] 
+env: 
+  # Use docker.io for Docker Hub if empty 
+  REGISTRY: docker.io 
+  # dockerhub.repository as <account>/<repo> 
+  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/node-client_app 
+jobs: 
+  build: 
+    runs-on: ubuntu-latest 
+    steps: 
+    - uses: actions/checkout@v3 
+    - name: Build the Docker image 
+      run: docker compose build --no-cache --force-rm  
+  test: 
+    runs-on: ubuntu-latest 
+    steps: 
+      - uses: actions/checkout@v2 
+      - name: Test the Docker image 
+        run: docker compose up -d  
+  push_to_registry: 
+    name: Push Docker image to Docker Hub 
+    runs-on: ubuntu-latest 
+    steps: 
+      - name: Check out the repo 
+        uses: actions/checkout@v3 
+ 
+      - name: Set up Docker Buildx 
+        uses: docker/setup-buildx-action@v2 
+ 
+      - name: Log in to Docker Hub 
+        uses: docker/login
+action@f054a8b539a109f9f41c372932f1ae047eff08c9 
+        with: 
+          username: ${{ secrets.DOCKER_USERNAME }} 
+          password: ${{ secrets.DOCKER_PASSWORD }} 
+      - name: Extract metadata (tags, labels) for Docker 
+        id: meta 
+        uses: docker/metadata
+action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38 
+        with: 
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} 
+      - name: Build and push Docker image 
+        uses: docker/build-push-action@v2 
+        with: 
+          context: "{{defaultContext}}" 
+          push: true 
+          tags: ${{ steps.meta.outputs.tags }} 
+          labels: ${{ steps.meta.outputs.labels }}
