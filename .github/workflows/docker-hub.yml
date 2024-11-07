@@ -1,80 +1,59 @@
-name: Build and Push Docker Image to Docker Hub
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
   pull_request:
-    branches: [ "main" ]
-
-env:
-  # Gunakan docker.io untuk Docker Hub
-  REGISTRY: docker.io
-  # Menyusun nama image untuk Docker Hub <username>/<repo>
-  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/node-client_app
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    # Checkout repository
+    - name: Checkout repository
+      uses: actions/checkout@v2
 
-      - name: Set up Docker Compose
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y docker-compose  # Install docker-compose
+    # Set up Docker Buildx
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
 
-      - name: Build the Docker image
-        run: |
-          docker-compose build --no-cache --force-rm
+    # Cache dependencies
+    - name: Cache Docker layers
+      uses: actions/cache@v2
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
 
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    # Build Docker image
+    - name: Build Docker image
+      id: build
+      run: |
+        docker buildx build --platform linux/amd64,linux/arm64 -t my-image:latest .
 
-      - name: Set up Docker Compose
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y docker-compose  # Install docker-compose
+    # Push Docker image to registry
+    - name: Push Docker image
+      run: |
+        docker push my-image:latest
 
-      - name: Test the Docker image
-        run: |
-          docker-compose up -d
-          docker-compose ps  # Untuk memastikan container berjalan
+    # Example of saving state using environment files instead of save-state
+    - name: Save build status to environment file
+      run: |
+        echo "BUILD_STATUS=success" >> $GITHUB_ENV
 
-  push_to_registry:
-    name: Push Docker image to Docker Hub
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    # Example of reading from environment file
+    - name: Display build status
+      run: |
+        echo "The build status is $BUILD_STATUS"
 
-      - name: Set up Docker Compose
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y docker-compose  # Install docker-compose
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v3
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+    # Deploy the application (optional step)
+    - name: Deploy application
+      if: ${{ success() }}
+      run: |
+        # Your deploy script goes here
+        echo "Deploying application..."
