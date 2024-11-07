@@ -7,31 +7,38 @@ on:
     branches: [ "main" ]
 
 env:
-  # Use docker.io for Docker Hub if empty
+  # Gunakan docker.io untuk Docker Hub
   REGISTRY: docker.io
-  # dockerhub.repository as <account>/<repo>
+  # Menyusun nama image untuk Docker Hub <username>/<repo>
   IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/node-client_app
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Build the Docker image
-        run: docker-compose build --no-cache --force-rm
+        run: |
+          docker-compose build --no-cache --force-rm
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Test the Docker image
-        run: docker-compose up -d
+        run: |
+          docker-compose up -d
+          docker-compose ps  # Untuk memastikan container berjalan
 
   push_to_registry:
     name: Push Docker image to Docker Hub
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the repo
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Set up Docker Buildx
@@ -43,9 +50,9 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Extract metadata (tags, labels) for Docker
+      - name: Extract metadata for Docker
         id: meta
-        uses: docker/metadata-action@3
+        uses: docker/metadata-action@v3
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
